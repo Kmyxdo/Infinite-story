@@ -1,0 +1,78 @@
+import json
+from ai import call_gpt
+
+def print_scene(scene):
+    print(scene["text"])
+    for i, choice in enumerate(scene["choices"]):
+        print(f"{i + 1}. {choice['text']}")
+
+def get_valid_choice(scene):
+    num_choices = len(scene["choices"])
+    user_input = input("What do you choose? ")
+
+    while True:
+        try:
+            choice = int(user_input)
+            if 1 <= choice <= num_choices:
+                return choice
+        except ValueError:
+            pass
+        user_input = input("Please enter a valid choice: ")
+
+def generate_scene(scene_key, story_data):
+    print("[Suspenseful music plays as the story continues...]")
+
+    start_scene = story_data["scenes"]["start"]
+    plot = story_data["plot"]
+
+    prompt = (
+        f"Return the next scene of a story for key {scene_key}. "
+        f"An example scene should be formatted in json like this: {str(start_scene)}. "
+        f"The main plot line of the story is {plot}."
+    )
+    response = call_gpt(prompt)
+
+    if "Error" in response:
+        print("Could not generate scene. Please try again.")
+        return None
+
+    new_scene = process_response(response)
+    story_data["scenes"][scene_key] = new_scene
+    return new_scene
+
+def process_response(response):
+    response = response.strip()
+    
+    if response.startswith("```json"):
+        response = response[7:]
+        response = response[:response.rfind("```")]
+    elif response.startswith("```"):
+        response = response[3:]
+        response = response[:response.rfind("```")]
+
+    response = response.strip()
+    print("Parsing:", repr(response[:100]))
+    return json.loads(response.strip())
+
+def main():
+    story_data = json.load(open('original_small.json'))
+    current_key = "start"
+
+    while True:
+        print()
+
+        if current_key not in story_data["scenes"]:
+            scene = generate_scene(current_key, story_data)
+            if scene is None:
+                print("Returning to previous scene...")
+                continue
+        else:
+            scene = story_data["scenes"][current_key]
+
+        print_scene(scene)
+        choice = get_valid_choice(scene)
+        current_key = scene["choices"][choice - 1]["scene_key"]
+
+
+if __name__ == "__main__":
+    main()
